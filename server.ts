@@ -223,7 +223,8 @@ async function startServer() {
 Produce:
 1. "thesis": One sharp central thesis in ${langMeta.name}.
 2. "audienceAngle": Who this deck persuades and what decision it drives (in ${langMeta.name}).
-3. "outline": Concise bullet-by-bullet slide plan (${count} numbered points, with the final point dedicated to a "References" / sources slide in ${langMeta.name}) ready to paste as source notes ([...]
+3. "outline": Concise bullet-by-bullet slide plan (${count} numbered points, with the final point dedicated to a "References" / sources slide in ${langMeta.name}) ready to paste as source notes (one bullet per slide, brief and actionable).
+4. "narrativeStrategy": One sentence on the rhetorical arc in ${langMeta.name}.`,
           config: {
             systemInstruction:
               'You are Cortex, an analytical presentation strategist. Reason step by step about story arc, evidence, and audience clarity before delivering the structured plan.',
