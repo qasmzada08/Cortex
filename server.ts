@@ -611,7 +611,7 @@ ${JSON.stringify(slide)}`,
 
       let searchTerms = rawQuery;
       // If non-ASCII (e.g. Arabic, Japanese, Korean), translate to concise English image search terms via Gemini if available
-      if (/[^ -]/.test(rawQuery) && process.env.GEMINI_API_KEY) {
+      if (/[^-]/.test(rawQuery) && process.env.GEMINI_API_KEY) {
         try {
           const ai = getAiClient();
           const tr = await callGeminiWithFallback(async (model) => {
