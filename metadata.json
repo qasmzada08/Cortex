@@ -1,0 +1,6 @@
+{
+  "name": "PolyDeck",
+  "description": "AI-powered multilingual presentation builder for creating, translating, editing, and exporting slide decks in any language.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

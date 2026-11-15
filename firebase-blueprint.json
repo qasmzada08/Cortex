@@ -1,0 +1,220 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated Cortex creator workspace metadata without PII fields",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "updatedAt"]
+    },
+    "CloudDeck": {
+      "title": "CloudDeck",
+      "description": "Cloud-saved Cortex presentation deck with slides, theme metadata, and optional custom PPTX theme",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "subtitle": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "languageCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "rtl": {
+          "type": "boolean"
+        },
+        "tone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "theme": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "customTheme": {
+          "$ref": "CloudTheme"
+        },
+        "thinkingSummary": {
+          "type": "string",
+          "maxLength": 3600
+        },
+        "slides": {
+          "type": "array",
+          "description": "Bounded array of 1 to 30 slide objects"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "title",
+        "language",
+        "languageCode",
+        "rtl",
+        "tone",
+        "theme",
+        "slides",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CloudTheme": {
+      "title": "CloudTheme",
+      "description": "Custom PowerPoint (.pptx) and slide visual theme saved to the user's cloud library",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "hexBg": {
+          "type": "string",
+          "pattern": "^[0-9A-F]{6}$"
+        },
+        "hexSurface": {
+          "type": "string",
+          "pattern": "^[0-9A-F]{6}$"
+        },
+        "hexInk": {
+          "type": "string",
+          "pattern": "^[0-9A-F]{6}$"
+        },
+        "hexMuted": {
+          "type": "string",
+          "pattern": "^[0-9A-F]{6}$"
+        },
+        "hexAccent": {
+          "type": "string",
+          "pattern": "^[0-9A-F]{6}$"
+        },
+        "displayFont": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "bodyFont": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "accentStyle": {
+          "type": "string",
+          "enum": ["top-bar", "left-rail", "framed", "minimal"]
+        },
+        "cornerStyle": {
+          "type": "string",
+          "enum": ["rounded", "sharp"]
+        },
+        "thinkingSummary": {
+          "type": "string",
+          "maxLength": 3600
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "name",
+        "description",
+        "hexBg",
+        "hexSurface",
+        "hexInk",
+        "hexMuted",
+        "hexAccent",
+        "displayFont",
+        "bodyFont",
+        "accentStyle",
+        "cornerStyle",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User workspace profile keyed by Firebase Auth UID"
+    },
+    "/users/{userId}/decks/{deckId}": {
+      "schema": { "$ref": "#/entities/CloudDeck" },
+      "description": "Cloud-saved presentation decks owned by a specific user"
+    },
+    "/users/{userId}/themes/{themeId}": {
+      "schema": { "$ref": "#/entities/CloudTheme" },
+      "description": "Cloud-saved custom PPTX themes owned by a specific user"
+    }
+  }
+}

@@ -1,0 +1,179 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 4.1: Global Safety Net - Default Deny Catch-All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Security & Validation Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isHex6(val) {
+      return val is string && val.size() == 6 && val.matches('^[0-9A-F]{6}$');
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'updatedAt'])
+        && data.uid is string && data.uid == userId && isValidId(data.uid)
+        && (!data.keys().hasAny(['displayName']) || (data.displayName is string && data.displayName.size() <= 120))
+        && (!data.keys().hasAny(['photoURL']) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEmbeddedCustomTheme(t) {
+      return t is map
+        && t.keys().hasAll([
+          'id', 'name', 'description', 'hexBg', 'hexSurface', 'hexInk', 'hexMuted', 'hexAccent',
+          'displayFont', 'bodyFont', 'accentStyle', 'cornerStyle'
+        ])
+        && t.keys().hasOnly([
+          'id', 'name', 'description', 'hexBg', 'hexSurface', 'hexInk', 'hexMuted', 'hexAccent',
+          'displayFont', 'bodyFont', 'accentStyle', 'cornerStyle', 'thinkingSummary'
+        ])
+        && isValidId(t.id)
+        && t.name is string && t.name.size() >= 1 && t.name.size() <= 48
+        && t.description is string && t.description.size() <= 140
+        && isHex6(t.hexBg) && isHex6(t.hexSurface) && isHex6(t.hexInk) && isHex6(t.hexMuted) && isHex6(t.hexAccent)
+        && t.displayFont is string && t.displayFont.size() >= 1 && t.displayFont.size() <= 64
+        && t.bodyFont is string && t.bodyFont.size() >= 1 && t.bodyFont.size() <= 64
+        && t.accentStyle in ['top-bar', 'left-rail', 'framed', 'minimal']
+        && t.cornerStyle in ['rounded', 'sharp']
+        && (!t.keys().hasAny(['thinkingSummary']) || (t.thinkingSummary is string && t.thinkingSummary.size() <= 3600));
+    }
+
+    function isValidCloudTheme(data, userId, themeId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'name', 'description', 'hexBg', 'hexSurface', 'hexInk', 'hexMuted', 'hexAccent',
+          'displayFont', 'bodyFont', 'accentStyle', 'cornerStyle', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'name', 'description', 'hexBg', 'hexSurface', 'hexInk', 'hexMuted', 'hexAccent',
+          'displayFont', 'bodyFont', 'accentStyle', 'cornerStyle', 'thinkingSummary', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == themeId && isValidId(data.id)
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 48
+        && data.description is string && data.description.size() <= 140
+        && isHex6(data.hexBg) && isHex6(data.hexSurface) && isHex6(data.hexInk) && isHex6(data.hexMuted) && isHex6(data.hexAccent)
+        && data.displayFont is string && data.displayFont.size() >= 1 && data.displayFont.size() <= 64
+        && data.bodyFont is string && data.bodyFont.size() >= 1 && data.bodyFont.size() <= 64
+        && data.accentStyle in ['top-bar', 'left-rail', 'framed', 'minimal']
+        && data.cornerStyle in ['rounded', 'sharp']
+        && (!data.keys().hasAny(['thinkingSummary']) || (data.thinkingSummary is string && data.thinkingSummary.size() <= 3600))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCloudDeck(data, userId, deckId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'title', 'language', 'languageCode', 'rtl', 'tone', 'theme', 'slides', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'title', 'subtitle', 'language', 'languageCode', 'rtl', 'tone', 'theme',
+          'customTheme', 'thinkingSummary', 'slides', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == deckId && isValidId(data.id)
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 240
+        && (!data.keys().hasAny(['subtitle']) || (data.subtitle is string && data.subtitle.size() <= 400))
+        && data.language is string && data.language.size() >= 1 && data.language.size() <= 80
+        && data.languageCode is string && data.languageCode.size() >= 1 && data.languageCode.size() <= 32
+        && data.rtl is bool
+        && data.tone is string && data.tone.size() >= 1 && data.tone.size() <= 64
+        && data.theme is string && data.theme.size() >= 1 && data.theme.size() <= 128
+        && (!data.keys().hasAny(['customTheme']) || isValidEmbeddedCustomTheme(data.customTheme))
+        && (!data.keys().hasAny(['thinkingSummary']) || (data.thinkingSummary is string && data.thinkingSummary.size() <= 3600))
+        && data.slides is list && data.slides.size() >= 1 && data.slides.size() <= 30
+        && data.slides[0] is map
+        && data.slides[0].title is string && data.slides[0].title.size() <= 300
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Owner-isolated User Profile
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']);
+      allow delete: if isValidId(userId) && isOwner(userId);
+
+      // Owner-isolated Cloud Decks
+      match /decks/{deckId} {
+        allow get: if isValidId(userId) && isValidId(deckId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(deckId)
+          && isOwner(userId)
+          && isValidCloudDeck(incoming(), userId, deckId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(deckId)
+          && isOwner(userId)
+          && isValidCloudDeck(incoming(), userId, deckId)
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'subtitle', 'language', 'languageCode', 'rtl', 'tone',
+            'theme', 'customTheme', 'thinkingSummary', 'slides', 'updatedAt'
+          ]);
+        allow delete: if isValidId(userId) && isValidId(deckId) && isOwner(userId);
+      }
+
+      // Owner-isolated Cloud Custom PPTX Themes
+      match /themes/{themeId} {
+        allow get: if isValidId(userId) && isValidId(themeId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(themeId)
+          && isOwner(userId)
+          && isValidCloudTheme(incoming(), userId, themeId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(themeId)
+          && isOwner(userId)
+          && isValidCloudTheme(incoming(), userId, themeId)
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'description', 'hexBg', 'hexSurface', 'hexInk', 'hexMuted', 'hexAccent',
+            'displayFont', 'bodyFont', 'accentStyle', 'cornerStyle', 'thinkingSummary', 'updatedAt'
+          ]);
+        allow delete: if isValidId(userId) && isValidId(themeId) && isOwner(userId);
+      }
+    }
+  }
+}
