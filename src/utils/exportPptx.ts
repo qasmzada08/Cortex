@@ -9,6 +9,24 @@ export interface ExportArtifact {
 }
 
 const IMAGE_TIMEOUT_MS = 8000;
+const SAFE_PPTX_FONTS = ['Arial', 'Calibri', 'Verdana', 'Tahoma', 'Georgia'];
+
+function resolvePptxFont(fontName?: string): string {
+  const normalized = (fontName || '').trim();
+  if (!normalized) return 'Arial';
+
+  if (SAFE_PPTX_FONTS.includes(normalized)) {
+    return normalized;
+  }
+
+  const lowercaseMap = new Map(
+    SAFE_PPTX_FONTS.map((name) => [name.toLowerCase(), name])
+  );
+  const matched = lowercaseMap.get(normalized.toLowerCase());
+  if (matched) return matched;
+
+  return 'Arial';
+}
 
 export function triggerBlobDownload(blob: Blob, filename: string): ExportArtifact {
   const blobUrl = URL.createObjectURL(blob);
@@ -134,8 +152,10 @@ export async function exportDeckToPptx(
 
   const theme = resolveDeckTheme(deck.theme, customThemes, deck.customTheme);
   const align = deck.rtl ? 'right' : 'left';
-  const fontFace = deck.rtl ? 'Arial' : theme.displayFont;
-  const bodyFont = deck.rtl ? 'Arial' : theme.bodyFont;
+  const safeDisplayFont = resolvePptxFont(theme.displayFont || 'Arial');
+  const safeBodyFont = resolvePptxFont(theme.bodyFont || 'Arial');
+  const fontFace = deck.rtl ? 'Arial' : safeDisplayFont;
+  const bodyFont = deck.rtl ? 'Arial' : safeBodyFont;
   const cardShape =
     theme.cornerStyle === 'rounded' ? pptx.ShapeType.roundRect : pptx.ShapeType.rect;
   const cardCornerOpt = theme.cornerStyle === 'rounded' ? { rectRadius: 0.08 } : {};
@@ -241,7 +261,6 @@ export async function exportDeckToPptx(
       rtlMode: deck.rtl,
     });
 
-    // Determine text content area bounds if split image is present
     const splitImageOnLeft = placement === 'left';
     const contentX = isSplit ? (splitImageOnLeft ? 5.9 : 0.9) : 0.9;
     const contentW = isSplit ? 6.5 : 11.5;
