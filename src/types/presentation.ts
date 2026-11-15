@@ -30,7 +30,8 @@ export type BuiltInThemeId =
   | 'editorial-ivory'
   | 'cobalt-executive'
   | 'midnight-slate'
-  | 'nordic-sage';
+  | 'nordic-sage'
+  | 'neon-aurora';
 
 export type DeckThemeId = BuiltInThemeId | (string & {});
 

@@ -258,7 +258,7 @@ export default function App() {
     if (deck.theme === themeId) {
       setDeck((prev) => ({
         ...prev,
-        theme: 'matrix',
+        theme: 'neon-aurora',
         customTheme: undefined,
         updatedAt: new Date().toISOString(),
       }));

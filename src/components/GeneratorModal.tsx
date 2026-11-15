@@ -84,7 +84,7 @@ export function GeneratorModal({
   const [language, setLanguage] = useState(initialLanguage ?? 'English');
   const [slideCount, setSlideCount] = useState(6);
   const [tone, setTone] = useState<DeckTone>('Executive');
-  const [theme, setTheme] = useState<DeckThemeId>('matrix');
+  const [theme, setTheme] = useState<DeckThemeId>('neon-aurora');
   const [thinkingDepth, setThinkingDepth] = useState<ThinkingDepth>('deep');
   const [sourceNotes, setSourceNotes] = useState('');
   const [showNotes, setShowNotes] = useState(false);
@@ -100,7 +100,7 @@ export function GeneratorModal({
   useEffect(() => {
     if (open) {
       setStep(1);
-      setTheme('matrix');
+      setTheme('neon-aurora');
       setThinkingDepth('deep');
       if (initialLanguage) setLanguage(initialLanguage);
       if (initialTopic !== undefined) setTopic(initialTopic);

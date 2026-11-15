@@ -170,7 +170,7 @@ export function parseDeckOrThemeJson(text: string, fallbackName = 'Imported'): I
         id: typeof rawDeck.id === 'string' && rawDeck.id ? rawDeck.id : makeSlideId('deck'),
         customTheme: normalizedCustom,
       },
-      normalizedCustom?.id || (typeof rawDeck.theme === 'string' ? rawDeck.theme : 'matrix'),
+      normalizedCustom?.id || (typeof rawDeck.theme === 'string' ? rawDeck.theme : 'neon-aurora'),
       typeof rawDeck.language === 'string' ? rawDeck.language : 'English',
       typeof rawDeck.tone === 'string' ? rawDeck.tone : 'Executive'
     );

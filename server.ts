@@ -415,7 +415,7 @@ All hex colors MUST be 6-character uppercase hex without '#' (e.g. "040A06", "EC
       const validTheme: DeckThemeId =
         typeof theme === 'string' && (theme in DECK_THEMES || normalizedCustom)
           ? theme
-          : 'matrix';
+          : 'neon-aurora';
       const toneStr = String(tone || 'Executive');
       const thinkingLevel = resolveThinkingLevel(thinkingDepth);
       const notesClause =
@@ -534,7 +534,7 @@ ${JSON.stringify({
           customTheme: deck.customTheme,
           thinkingSummary: deck.thinkingSummary,
         },
-        deck.theme || 'matrix',
+        deck.theme || 'neon-aurora',
         langMeta.name,
         deck.tone || 'Executive'
       );
@@ -755,7 +755,7 @@ ${JSON.stringify(slide)}`,
 
       const langMeta = resolveLanguageMeta(String(language || 'English'));
       const resolvedTheme = resolveDeckTheme(
-        themeId || 'matrix',
+        themeId || 'neon-aurora',
         [],
         customTheme as CustomThemeDefinition | undefined
       );

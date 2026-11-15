@@ -9,7 +9,7 @@ export const STARTER_DECKS: PresentationDeck[] = [
     languageCode: 'en',
     rtl: false,
     tone: 'Executive',
-    theme: 'matrix',
+    theme: 'neon-aurora',
     updatedAt: '2026-11-15T10:00:00.000Z',
     slides: [
       {

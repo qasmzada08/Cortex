@@ -182,13 +182,13 @@ export function subscribeCloudDecks(
               languageCode: String(raw.languageCode || 'en'),
               rtl: Boolean(raw.rtl),
               tone: String(raw.tone || 'Executive'),
-              theme: String(raw.theme || 'matrix'),
+              theme: String(raw.theme || 'neon-aurora'),
               customTheme: raw.customTheme as CustomThemeDefinition | undefined,
               thinkingSummary:
                 typeof raw.thinkingSummary === 'string' ? raw.thinkingSummary : undefined,
               slides: Array.isArray(raw.slides) ? raw.slides : [],
             },
-            String(raw.theme || 'matrix'),
+            String(raw.theme || 'neon-aurora'),
             String(raw.language || 'English'),
             String(raw.tone || 'Executive')
           );
@@ -237,7 +237,7 @@ export async function saveCloudDeck(
     languageCode: (deck.languageCode || 'en').slice(0, 32),
     rtl: Boolean(deck.rtl),
     tone: (deck.tone || 'Executive').slice(0, 64),
-    theme: (deck.theme || 'matrix').slice(0, 128),
+    theme: (deck.theme || 'neon-aurora').slice(0, 128),
     customTheme: normalizedCustom,
     thinkingSummary: deck.thinkingSummary ? deck.thinkingSummary.slice(0, 3500) : undefined,
     slides: deck.slides.slice(0, 30).map((slide, idx) => ({

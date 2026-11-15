@@ -118,6 +118,24 @@ export const DECK_THEMES: Record<DeckThemeId, ThemeTokens> = {
     hexMuted: '475569',
     hexAccent: '047857',
   },
+  'neon-aurora': {
+    id: 'neon-aurora',
+    name: 'Neon Aurora',
+    description: 'Vibrant dark canvas with electric magenta, cyan, and amber accents',
+    canvasBg: 'bg-[#0A0A14]',
+    surfaceBg: 'bg-[#12121F]',
+    inkPrimary: 'text-slate-50',
+    inkMuted: 'text-slate-300',
+    accentBg: 'bg-fuchsia-500',
+    accentText: 'text-fuchsia-400',
+    accentBorder: 'border-fuchsia-500/35',
+    borderSubtle: 'border-slate-700/80',
+    hexBg: '0A0A14',
+    hexSurface: '12121F',
+    hexInk: 'F8FAFC',
+    hexMuted: 'CBD5E1',
+    hexAccent: 'D946EF',
+  },
 };
 
 const VALID_LAYOUTS: ReadonlySet<SlideLayout> = new Set([

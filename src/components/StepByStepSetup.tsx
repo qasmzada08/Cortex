@@ -106,7 +106,7 @@ export function StepByStepSetup({
   const [slideCount, setSlideCount] = useState(6);
   const [tone, setTone] = useState<DeckTone>('Executive');
 
-  const [theme, setTheme] = useState<DeckThemeId>('matrix');
+  const [theme, setTheme] = useState<DeckThemeId>('neon-aurora');
   const [themeFeedback, setThemeFeedback] = useState('');
   const [isDesigningTheme, setIsDesigningTheme] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);

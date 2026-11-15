@@ -228,7 +228,7 @@ export function resolveDeckTheme(
   }
 
   const builtInKey: BuiltInThemeId =
-    themeId in DECK_THEMES ? (themeId as BuiltInThemeId) : 'matrix';
+    themeId in DECK_THEMES ? (themeId as BuiltInThemeId) : 'neon-aurora';
   const token = DECK_THEMES[builtInKey];
   const displayOpt = resolveFontOption('Plus Jakarta Sans', 'Plus Jakarta Sans');
   const bodyOpt = resolveFontOption('DM Sans', 'DM Sans');
