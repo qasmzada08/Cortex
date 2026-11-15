@@ -30,6 +30,17 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const DEFAULT_GEMINI_MODEL = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
+const GEMINI_MODELS = Array.from(
+  new Set([
+    DEFAULT_GEMINI_MODEL,
+    'gemini-2.5-flash',
+    'gemini-2.5-pro',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+  ])
+).filter(Boolean);
+
 function getAiClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -45,6 +56,33 @@ function getAiClient(): GoogleGenAI {
       },
     },
   });
+}
+
+async function callGeminiWithFallback<T>(
+  requestBuilder: (model: string) => Promise<T>,
+  fallbackModels: string[] = GEMINI_MODELS
+): Promise<T> {
+  let lastError: unknown;
+
+  for (const model of fallbackModels) {
+    try {
+      return await requestBuilder(model);
+    } catch (error) {
+      lastError = error;
+      const raw = error instanceof Error ? error.message : String(error);
+      const isModelIssue =
+        raw.includes('model') ||
+        raw.includes('not found') ||
+        raw.includes('not supported') ||
+        raw.includes('404') ||
+        raw.includes('invalid model');
+      if (!isModelIssue) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Gemini model request failed.');
 }
 
 const SLIDE_SCHEMA = {
@@ -143,6 +181,13 @@ function mapGeminiError(error: unknown): { status: number; message: string } {
       message: 'Rate limit reached. Please wait a moment and try again.',
     };
   }
+  if (raw.includes('model') || raw.includes('not found') || raw.includes('not supported')) {
+    return {
+      status: 400,
+      message:
+        'This Gemini model is unavailable in the current environment. Please check the configured model or use the default model configuration.',
+    };
+  }
   return {
     status: status >= 400 && status < 600 ? status : 500,
     message: raw || 'Presentation generation failed.',
@@ -171,31 +216,33 @@ async function startServer() {
       const toneStr = String(tone || 'Executive');
       const ai = getAiClient();
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: `Think deeply and plan an editorial outline for a ${count}-slide presentation in ${langMeta.name} (${toneStr} tone) about: "${cleanTopic}".
+      const response = await callGeminiWithFallback(async (model) => {
+        return await ai.models.generateContent({
+          model,
+          contents: `Think deeply and plan an editorial outline for a ${count}-slide presentation in ${langMeta.name} (${toneStr} tone) about: "${cleanTopic}".
 Produce:
 1. "thesis": One sharp central thesis in ${langMeta.name}.
 2. "audienceAngle": Who this deck persuades and what decision it drives (in ${langMeta.name}).
-3. "outline": Concise bullet-by-bullet slide plan (${count} numbered points, with the final point dedicated to a "References" / sources slide in ${langMeta.name}) ready to paste as source notes (in ${langMeta.name}).`,
-        config: {
-          systemInstruction:
-            'You are Cortex, an analytical presentation strategist. Reason step by step about story arc, evidence, and audience clarity before delivering the structured plan.',
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              thesis: { type: Type.STRING },
-              audienceAngle: { type: Type.STRING },
-              outline: { type: Type.STRING },
+3. "outline": Concise bullet-by-bullet slide plan (${count} numbered points, with the final point dedicated to a "References" / sources slide in ${langMeta.name}) ready to paste as source notes ([...]
+          config: {
+            systemInstruction:
+              'You are Cortex, an analytical presentation strategist. Reason step by step about story arc, evidence, and audience clarity before delivering the structured plan.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                thesis: { type: Type.STRING },
+                audienceAngle: { type: Type.STRING },
+                outline: { type: Type.STRING },
+              },
+              required: ['thesis', 'audienceAngle', 'outline'],
             },
-            required: ['thesis', 'audienceAngle', 'outline'],
+            thinkingConfig: {
+              thinkingLevel: ThinkingLevel.HIGH,
+              includeThoughts: true,
+            },
           },
-          thinkingConfig: {
-            thinkingLevel: ThinkingLevel.HIGH,
-            includeThoughts: true,
-          },
-        },
+        });
       });
 
       const parsed = JSON.parse(response.text?.trim() || '{}') as {
@@ -264,13 +311,14 @@ Produce:
 
       const thinkingLevel = resolveThinkingLevel(thinkingDepth || 'deep');
       const ai = getAiClient();
-      const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: `Design a complete, high-contrast PowerPoint (.pptx) and presentation slide theme.
+      const response = await callGeminiWithFallback(async (model) => {
+        return await ai.models.generateContent({
+          model,
+          contents: `Design a complete, high-contrast PowerPoint (.pptx) and presentation slide theme.
 ${directive}
 ${contextLines.length > 0 ? contextLines.join('\n') : ''}
 
-Reason carefully about WCAG readability (>= 7:1 contrast between hexBg and hexInk), card surface separation (hexSurface distinct from hexBg), harmonious muted text (hexMuted), typography pairing, and architectural accent framing.
+Reason carefully about WCAG readability (>= 7:1 contrast between hexBg and hexInk), card surface separation (hexSurface distinct from hexBg), harmonious muted text (hexMuted), typography pairing,[...]
 
 Allowed displayFont / bodyFont values (choose exact strings):
 "Plus Jakarta Sans", "DM Sans", "JetBrains Mono", "Georgia", "Arial", "Trebuchet MS", "Calibri"
@@ -278,45 +326,46 @@ Allowed displayFont / bodyFont values (choose exact strings):
 Allowed accentStyle values: "top-bar", "left-rail", "framed", "minimal"
 Allowed cornerStyle values: "rounded", "sharp"
 All hex colors MUST be 6-character uppercase hex without '#' (e.g. "040A06", "ECFDF5", "10B981").`,
-        config: {
-          systemInstruction:
-            'You are a world-class presentation art director and PowerPoint theme architect. Produce a balanced, crisp, accessible PPTX theme.',
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              description: { type: Type.STRING },
-              hexBg: { type: Type.STRING },
-              hexSurface: { type: Type.STRING },
-              hexInk: { type: Type.STRING },
-              hexMuted: { type: Type.STRING },
-              hexAccent: { type: Type.STRING },
-              displayFont: { type: Type.STRING },
-              bodyFont: { type: Type.STRING },
-              accentStyle: { type: Type.STRING },
-              cornerStyle: { type: Type.STRING },
-              designRationale: { type: Type.STRING },
+          config: {
+            systemInstruction:
+              'You are a world-class presentation art director and PowerPoint theme architect. Produce a balanced, crisp, accessible PPTX theme.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                description: { type: Type.STRING },
+                hexBg: { type: Type.STRING },
+                hexSurface: { type: Type.STRING },
+                hexInk: { type: Type.STRING },
+                hexMuted: { type: Type.STRING },
+                hexAccent: { type: Type.STRING },
+                displayFont: { type: Type.STRING },
+                bodyFont: { type: Type.STRING },
+                accentStyle: { type: Type.STRING },
+                cornerStyle: { type: Type.STRING },
+                designRationale: { type: Type.STRING },
+              },
+              required: [
+                'name',
+                'description',
+                'hexBg',
+                'hexSurface',
+                'hexInk',
+                'hexMuted',
+                'hexAccent',
+                'displayFont',
+                'bodyFont',
+                'accentStyle',
+                'cornerStyle',
+              ],
             },
-            required: [
-              'name',
-              'description',
-              'hexBg',
-              'hexSurface',
-              'hexInk',
-              'hexMuted',
-              'hexAccent',
-              'displayFont',
-              'bodyFont',
-              'accentStyle',
-              'cornerStyle',
-            ],
+            thinkingConfig: {
+              thinkingLevel,
+              includeThoughts: thinkingLevel !== ThinkingLevel.LOW,
+            },
           },
-          thinkingConfig: {
-            thinkingLevel,
-            includeThoughts: thinkingLevel !== ThinkingLevel.LOW,
-          },
-        },
+        });
       });
 
       const parsed = JSON.parse(response.text?.trim() || '{}') as Partial<CustomThemeDefinition> & {
@@ -374,29 +423,31 @@ All hex colors MUST be 6-character uppercase hex without '#' (e.g. "040A06", "EC
           : '';
 
       const ai = getAiClient();
-      const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: `Create a ${parsedCount}-slide presentation about: "${String(topic).trim()}"
-Target language: ${langMeta.name} (write EVERY visible field—kicker, title, subtitle, bullets, column headings, column points, metrics labels, quote, quoteAuthor, and speakerNotes—natively and idiomatically in ${langMeta.name}).
+      const response = await callGeminiWithFallback(async (model) => {
+        return await ai.models.generateContent({
+          model,
+          contents: `Create a ${parsedCount}-slide presentation about: "${String(topic).trim()}"
+Target language: ${langMeta.name} (write EVERY visible field—kicker, title, subtitle, bullets, column headings, column points, metrics labels, quote, quoteAuthor, and speakerNotes—natively and naturally in ${langMeta.name}).
 Tone: ${toneStr}.${notesClause}
 
 Structure rules:
 1. Slide 1 must use layout "title".
 2. When slide count >= 4, the second-to-last slide must use layout "closing" with 2–3 concrete next-step bullets.
-3. The FINAL slide of the presentation MUST ALWAYS be a localized References section (layout "bullets", title translated naturally into ${langMeta.name} such as "References", "المراجع والمصادر", "参考文献", "Referencias", etc.) listing 3–5 authoritative academic, institutional, industry, or primary sources relevant to "${String(topic).trim()}".
+3. The FINAL slide of the presentation MUST ALWAYS be a localized References section (layout "bullets", title translated naturally into ${langMeta.name} such as "References", "المراجع والمصادر", etc.).
 4. Vary the middle slides thoughtfully across "bullets", "two-column", "metric" (exactly 3 concise metric items with crisp numbers/units), and "quote" (at most 1 quote slide).
 5. Keep slide titles sharp (6–11 words max) and bullets scannable (10–18 words max per bullet, 3–4 bullets per slide).
 6. Write practical, spoken-style speakerNotes for each slide in ${langMeta.name}.
 7. Include a brief "reasoningSummary" explaining your strategic slide progression.`,
-        config: {
-          systemInstruction: `You are Cortex, an expert multilingual presentation architect and deep thinker. Reason carefully about narrative flow, evidence hierarchy, and executive impact before authoring slides natively in ${langMeta.name}. Never mix English into non-English decks unless proper technical acronyms require it.`,
-          responseMimeType: 'application/json',
-          responseSchema: DECK_RESPONSE_SCHEMA,
-          thinkingConfig: {
-            thinkingLevel,
-            includeThoughts: thinkingLevel !== ThinkingLevel.LOW,
+          config: {
+            systemInstruction: `You are Cortex, an expert multilingual presentation architect and deep thinker. Reason carefully about narrative flow, evidence hierarchy, and executive impact before delivering the final JSON.`,
+            responseMimeType: 'application/json',
+            responseSchema: DECK_RESPONSE_SCHEMA,
+            thinkingConfig: {
+              thinkingLevel,
+              includeThoughts: thinkingLevel !== ThinkingLevel.LOW,
+            },
           },
-        },
+        });
       });
 
       const rawText = response.text?.trim() || '{}';
@@ -446,9 +497,10 @@ Structure rules:
       const langMeta = resolveLanguageMeta(String(targetLanguage));
       const ai = getAiClient();
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: `Translate this entire presentation deck accurately and idiomatically into ${langMeta.name}.
+      const response = await callGeminiWithFallback(async (model) => {
+        return await ai.models.generateContent({
+          model,
+          contents: `Translate this entire presentation deck accurately and idiomatically into ${langMeta.name}.
 Preserve the exact number of slides, slide IDs, layout types, metric values (translate metric labels, keep numeric figures accurate), and overall structure.
 Translate title, subtitle, every kicker, slide title, subtitle, bullets, leftColumn, rightColumn, metric labels, quote, quoteAuthor, and speakerNotes into natural ${langMeta.name}.
 
@@ -458,12 +510,13 @@ ${JSON.stringify({
   subtitle: deck.subtitle,
   slides: deck.slides,
 })}`,
-        config: {
-          systemInstruction: `You are a native-level localization and presentation translation specialist. Translate content naturally for live presentation delivery in ${langMeta.name} without altering JSON structure or slide layouts.`,
-          responseMimeType: 'application/json',
-          responseSchema: DECK_RESPONSE_SCHEMA,
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-        },
+          config: {
+            systemInstruction: `You are a native-level localization and presentation translation specialist. Translate content naturally for live presentation delivery in ${langMeta.name} without altering the deck's structure or key metrics.`,
+            responseMimeType: 'application/json',
+            responseSchema: DECK_RESPONSE_SCHEMA,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          },
+        });
       });
 
       const rawText = response.text?.trim() || '{}';
@@ -508,23 +561,25 @@ ${JSON.stringify({
       const thinkingLevel = resolveThinkingLevel(thinkingDepth);
       const ai = getAiClient();
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: `Refine the following presentation slide from the deck "${String(deckTitle || '')}".
+      const response = await callGeminiWithFallback(async (model) => {
+        return await ai.models.generateContent({
+          model,
+          contents: `Refine the following presentation slide from the deck "${String(deckTitle || '')}".
 Output language MUST remain: ${langMeta.name}.
 User instruction: "${String(instruction).trim()}"
 
 Current slide JSON:
 ${JSON.stringify(slide)}`,
-        config: {
-          systemInstruction: `You are Cortex, an analytical presentation editor. Think through clarity, pacing, and persuasion before returning the improved slide JSON in ${langMeta.name}.`,
-          responseMimeType: 'application/json',
-          responseSchema: SLIDE_SCHEMA,
-          thinkingConfig: {
-            thinkingLevel,
-            includeThoughts: thinkingLevel !== ThinkingLevel.LOW,
+          config: {
+            systemInstruction: `You are Cortex, an analytical presentation editor. Think through clarity, pacing, and persuasion before returning the improved slide JSON in ${langMeta.name}.`,
+            responseMimeType: 'application/json',
+            responseSchema: SLIDE_SCHEMA,
+            thinkingConfig: {
+              thinkingLevel,
+              includeThoughts: thinkingLevel !== ThinkingLevel.LOW,
+            },
           },
-        },
+        });
       });
 
       const rawText = response.text?.trim() || '{}';
@@ -556,13 +611,15 @@ ${JSON.stringify(slide)}`,
 
       let searchTerms = rawQuery;
       // If non-ASCII (e.g. Arabic, Japanese, Korean), translate to concise English image search terms via Gemini if available
-      if (/[^\x20-\x7E]/.test(rawQuery) && process.env.GEMINI_API_KEY) {
+      if (/[^ -]/.test(rawQuery) && process.env.GEMINI_API_KEY) {
         try {
           const ai = getAiClient();
-          const tr = await ai.models.generateContent({
-            model: 'gemini-4-hydrogen',
-            contents: `Convert this presentation photo search query into 2-4 concise English keywords suitable for searching stock photography: "${rawQuery}". Reply with only the keywords.`,
-            config: { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } },
+          const tr = await callGeminiWithFallback(async (model) => {
+            return await ai.models.generateContent({
+              model,
+              contents: `Convert this presentation photo search query into 2-4 concise English keywords suitable for searching stock photography: "${rawQuery}". Reply with only the keywords.`,
+              config: { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } },
+            });
           });
           if (tr.text?.trim()) {
             searchTerms = tr.text.trim().replace(/["\n]/g, ' ').slice(0, 80);
@@ -703,9 +760,10 @@ ${JSON.stringify(slide)}`,
       );
 
       const ai = getAiClient();
-      const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: `Design a clean, executive presentation vector diagram/illustration (SVG) for: "${cleanPrompt}".
+      const response = await callGeminiWithFallback(async (model) => {
+        return await ai.models.generateContent({
+          model,
+          contents: `Design a clean, executive presentation vector diagram/illustration (SVG) for: "${cleanPrompt}".
 Language for any labels inside the graphic: ${langMeta.name} (${langMeta.rtl ? 'Right-to-Left' : 'Left-to-Right'}).
 Use these harmonious colors:
 - Background: #${resolvedTheme.hexSurface}
@@ -717,21 +775,22 @@ Strict SVG requirements:
 1. Root element: <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
 2. Crisp geometric shapes, clean rounded containers, arrows, charts, or architectural diagrams — NO embedded <script>, NO foreignObject, NO external image hrefs.
 3. Keep labels short and legible (font-family="sans-serif", font-size 16–24px) with generous padding so text never overlaps shapes.`,
-        config: {
-          systemInstruction:
-            'You are a presentation graphics designer. Return JSON containing a crisp, valid, self-contained SVG string plus a short alt text and caption.',
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              svg: { type: Type.STRING },
-              alt: { type: Type.STRING },
-              caption: { type: Type.STRING },
+          config: {
+            systemInstruction:
+              'You are a presentation graphics designer. Return JSON containing a crisp, valid, self-contained SVG string plus a short alt text and caption.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                svg: { type: Type.STRING },
+                alt: { type: Type.STRING },
+                caption: { type: Type.STRING },
+              },
+              required: ['svg', 'alt'],
             },
-            required: ['svg', 'alt'],
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           },
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-        },
+        });
       });
 
       const parsed = JSON.parse(response.text?.trim() || '{}') as {
